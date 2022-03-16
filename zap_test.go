@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tao_zap
+package zap
 
 import (
 	"github.com/stretchr/testify/assert"
@@ -21,6 +21,28 @@ import (
 )
 
 func TestTao(t *testing.T) {
-	err := tao.Run(nil, nil)
+	err := tao.SetConfigPath("./test.json")
 	assert.Nil(t, err)
+
+	// delete tao's default logger & writer
+	err = tao.DeleteLogger(tao.ConfigKey)
+	assert.Nil(t, err)
+	err = tao.DeleteWriter(tao.ConfigKey)
+	assert.Nil(t, err)
+
+	err = tao.Run(nil, nil)
+	assert.Nil(t, err)
+
+	tao.Debug("logger debug")
+	tao.Debugf("logger %s\n", "debugf")
+	tao.Info("logger info")
+	tao.Infof("logger %s\n", "infof")
+	tao.Warn("logger warn")
+	tao.Warnf("logger %s\n", "warnf")
+	tao.Error("logger error")
+	tao.Errorf("logger %s\n", "errorf")
+	//tao.Panic("logger panic")
+	//tao.Panicf("logger %s\n", "panicf")
+	//tao.Fatal("logger fatal")
+	//tao.Fatalf("logger %s\n", "fatalf")
 }

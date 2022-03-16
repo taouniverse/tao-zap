@@ -1,0 +1,21 @@
+{
+  "tao": {
+    "log": {
+      "level": "debug",
+      "type": "console"
+    }
+  },
+  "zap": {
+    "logs": {
+      "console": {
+        "level": "debug"
+      },
+      "file": {
+        "level": "info",
+        "store": {}
+      }
+    },
+    "callDepth": 1,
+    "run_after": []
+  }
+}

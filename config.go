@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tao_zap
+package zap
 
 import (
+	"context"
 	"github.com/taouniverse/tao"
 	"go.uber.org/zap/zapcore"
 )
@@ -22,31 +23,124 @@ import (
 // ConfigKey for this repo
 const ConfigKey = "zap"
 
-// ZapConfig implements tao.Config
-type ZapConfig struct {
-	Type      string        `json:"type"`
-	Level     zapcore.Level `json:"level"`
-	RunAfter_ []string      `json:"run_after,omitempty"`
+// LogType of zap log
+type LogType string
+
+const (
+	// Console log
+	Console LogType = "console"
+	// File log
+	File LogType = "file"
+)
+
+// Config implements tao.Config
+type Config struct {
+	Logs      map[LogType]*config `json:"logs"`
+	CallDepth int                 `json:"call_depth"`
+	RunAfters []string            `json:"run_after,omitempty"`
 }
 
-var defaultZap = &ZapConfig{
-	RunAfter_: []string{},
+// config of log unit
+type config struct {
+	Level zapcore.Level `json:"level"`
+	Store *store        `json:"store,omitempty"`
 }
 
-func (z *ZapConfig) Default() tao.Config {
+// store config for File log
+type store struct {
+	// default value is invalid
+	Path       string `json:"path"`
+	MaxSize    int    `json:"max_size"`
+	MaxBackups int    `json:"max_backups"`
+	MaxAge     int    `json:"max_age"`
+
+	// default value is valid
+	Compress  bool `json:"compress"`
+	LocalZone bool `json:"local_zone"`
+}
+
+var defaultCommand = &config{
+	Level: zapcore.DebugLevel,
+}
+
+var defaultFile = &config{
+	Level: zapcore.DebugLevel,
+	Store: &store{
+		Path:       "./test.log",
+		MaxSize:    1024, // 1024 mb
+		MaxBackups: 7,    // seven files
+		MaxAge:     30,   // one month
+		Compress:   true, // compress rotated log files with gzip
+		LocalZone:  true, // backup using local time zone
+	},
+}
+
+var defaultZap = &Config{
+	Logs: map[LogType]*config{
+		Console: defaultCommand,
+	},
+	CallDepth: 1,
+}
+
+// Default config
+func (z *Config) Default() tao.Config {
 	return defaultZap
 }
 
-func (z *ZapConfig) ValidSelf() {
-	//TODO implement me
-	panic("implement me")
+// ValidSelf with some default values
+func (z *Config) ValidSelf() {
+	if z.Logs == nil {
+		z.Logs = defaultZap.Logs
+	}
+	for k, v := range z.Logs {
+		switch k {
+		case Console:
+			if v.Level < zapcore.DebugLevel || v.Level > zapcore.FatalLevel {
+				v.Level = defaultCommand.Level
+			}
+		case File:
+			if v.Level < zapcore.DebugLevel || v.Level > zapcore.FatalLevel {
+				v.Level = defaultFile.Level
+			}
+			if v.Store == nil {
+				v.Store = defaultFile.Store
+			} else {
+				if v.Store.Path == "" {
+					v.Store.Path = defaultFile.Store.Path
+				}
+				if v.Store.MaxSize == 0 {
+					v.Store.MaxSize = defaultFile.Store.MaxSize
+				}
+				if v.Store.MaxBackups == 0 {
+					v.Store.MaxBackups = defaultFile.Store.MaxBackups
+				}
+				if v.Store.MaxAge == 0 {
+					v.Store.MaxAge = defaultFile.Store.MaxAge
+				}
+			}
+		default:
+			delete(z.Logs, k)
+		}
+	}
 }
 
-func (z *ZapConfig) ToTask() tao.Task {
-	//TODO implement me
-	panic("implement me")
+// ToTask transform itself to Task
+func (z *Config) ToTask() tao.Task {
+	return tao.NewTask(
+		ConfigKey,
+		func(ctx context.Context, param tao.Parameter) (tao.Parameter, error) {
+			// non-block check
+			select {
+			case <-ctx.Done():
+				return param, tao.NewError(tao.ContextCanceled, "%s: context has been canceled", ConfigKey)
+			default:
+			}
+			// nothing to do
+			return param, nil
+		})
 }
 
-func (z *ZapConfig) RunAfter() []string {
-	return z.RunAfter_
+// RunAfter defines pre task names
+func (z *Config) RunAfter() []string {
+	return z.RunAfters
 }

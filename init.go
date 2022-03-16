@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tao_zap
+package zap
 
 import (
 	"encoding/json"
@@ -20,23 +20,37 @@ import (
 )
 
 /**
-import _ "github.com/taouniverse/tao_zap"
+import _ "github.com/taouniverse/tao-zap"
 */
+
+// Z config of zap
+var Z = new(Config)
+
 func init() {
-	// 1. transfer config bytes to object
-	h := new(ZapConfig)
-	bytes, err := tao.GetConfigBytes(ConfigKey)
-	if err != nil {
-		h = h.Default().(*ZapConfig)
-	} else {
-		err = json.Unmarshal(bytes, &h)
+	err := tao.Register(ConfigKey, func() error {
+		// 1. transfer config bytes to object
+		bytes, err := tao.GetConfigBytes(ConfigKey)
 		if err != nil {
-			panic(err)
+			Z = Z.Default().(*Config)
+		} else {
+			err = json.Unmarshal(bytes, &Z)
+			if err != nil {
+				return err
+			}
 		}
-	}
-	// 2. set object to tao
-	err = tao.SetConfig(ConfigKey, h)
+
+		Z.ValidSelf()
+
+		// 2. set object to tao
+		err = tao.SetConfig(ConfigKey, Z)
+		if err != nil {
+			return err
+		}
+
+		// 3. setup zap logger
+		return setup()
+	})
 	if err != nil {
-		panic(err)
+		panic(err.Error())
 	}
 }
