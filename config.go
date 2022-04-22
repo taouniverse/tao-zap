@@ -122,6 +122,9 @@ func (z *Config) ValidSelf() {
 			delete(z.Logs, k)
 		}
 	}
+	if z.CallDepth <= 0 {
+		z.CallDepth = defaultZap.CallDepth
+	}
 }
 
 // ToTask transform itself to Task
