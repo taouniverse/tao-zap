@@ -22,6 +22,20 @@ import (
 	"os"
 )
 
+/**
+import _ "github.com/taouniverse/tao-zap"
+*/
+
+// Z config of zap
+var Z = new(Config)
+
+func init() {
+	err := tao.Register(ConfigKey, Z, setup)
+	if err != nil {
+		panic(err.Error())
+	}
+}
+
 // Logger based on zap
 var Logger *zap.SugaredLogger
 

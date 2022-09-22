@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/stretchr/testify v1.7.0
-	github.com/taouniverse/tao v0.1.0
+	github.com/taouniverse/tao v0.1.5
 	go.uber.org/zap v1.20.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 )

@@ -82,9 +82,9 @@ var defaultZap = &Config{
 	CallDepth: 1,
 }
 
-// Default config
-func (z *Config) Default() tao.Config {
-	return defaultZap
+// Name of Config
+func (z *Config) Name() string {
+	return ConfigKey
 }
 
 // ValidSelf with some default values
