@@ -37,6 +37,7 @@ const (
 type Config struct {
 	Logs      map[LogType]*config `json:"logs"`
 	CallDepth int                 `json:"call_depth"`
+	Coexist   bool                `json:"coexist"`
 	RunAfters []string            `json:"run_after,omitempty"`
 }
 
@@ -80,6 +81,7 @@ var defaultZap = &Config{
 		Console: defaultCommand,
 	},
 	CallDepth: 1,
+	Coexist:   false,
 }
 
 // Name of Config
