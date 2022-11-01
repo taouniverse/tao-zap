@@ -79,7 +79,12 @@ func setup() (err error) {
 	if err != nil {
 		return
 	}
-	return tao.SetWriter(ConfigKey, zapcore.NewMultiWriteSyncer(ws...))
+	err = tao.SetWriter(ConfigKey, zapcore.NewMultiWriteSyncer(ws...))
+	if !Z.Coexist {
+		_ = tao.DeleteLogger(tao.ConfigKey)
+		_ = tao.DeleteWriter(tao.ConfigKey)
+	}
+	return
 }
 
 func setupConsoleLog(c *config) {
