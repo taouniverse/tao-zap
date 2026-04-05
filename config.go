@@ -1,4 +1,4 @@
-// Copyright 2022 huija
+// Copyright 2021-2026 huija
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,51 +33,53 @@ const (
 	File LogType = "file"
 )
 
-// Config implements tao.Config
-type Config struct {
-	Logs      map[LogType]*config `json:"logs"`
-	CallDepth int                 `json:"call_depth"`
-	Coexist   bool                `json:"coexist"`
-	RunAfters []string            `json:"run_after,omitempty"`
+// InstanceConfig 单实例配置
+type InstanceConfig struct {
+	Logs      map[LogType]*LogConfig `json:"logs"`
+	CallDepth int                    `json:"call_depth"`
+	Coexist   bool                   `json:"coexist"`
 }
 
-// config of log unit
-type config struct {
+// LogConfig of log unit
+type LogConfig struct {
 	Level zapcore.Level `json:"level"`
-	Store *store        `json:"store,omitempty"`
+	Store *Store        `json:"store,omitempty"`
 }
 
-// store config for File log
-type store struct {
-	// default value is invalid
+// Store config for File log
+type Store struct {
 	Path       string `json:"path"`
 	MaxSize    int    `json:"max_size"`
 	MaxBackups int    `json:"max_backups"`
 	MaxAge     int    `json:"max_age"`
-
-	// default value is valid
-	Compress  bool `json:"compress"`
-	LocalZone bool `json:"local_zone"`
+	Compress   bool   `json:"compress"`
+	LocalZone  bool   `json:"local_zone"`
 }
 
-var defaultCommand = &config{
+// Config 总配置，实现 tao.MultiConfig 接口
+type Config struct {
+	tao.BaseMultiConfig[InstanceConfig]
+	RunAfters []string `json:"run_after,omitempty" yaml:"run_after,omitempty"`
+}
+
+var defaultCommand = &LogConfig{
 	Level: zapcore.DebugLevel,
 }
 
-var defaultFile = &config{
+var defaultFile = &LogConfig{
 	Level: zapcore.DebugLevel,
-	Store: &store{
+	Store: &Store{
 		Path:       "./test.log",
-		MaxSize:    1024, // 1024 mb
-		MaxBackups: 7,    // seven files
-		MaxAge:     30,   // one month
-		Compress:   true, // compress rotated log files with gzip
-		LocalZone:  true, // backup using local time zone
+		MaxSize:    1024,
+		MaxBackups: 7,
+		MaxAge:     30,
+		Compress:   true,
+		LocalZone:  true,
 	},
 }
 
-var defaultZap = &Config{
-	Logs: map[LogType]*config{
+var defaultInstance = &InstanceConfig{
+	Logs: map[LogType]*LogConfig{
 		Console: defaultCommand,
 	},
 	CallDepth: 1,
@@ -91,41 +93,47 @@ func (z *Config) Name() string {
 
 // ValidSelf with some default values
 func (z *Config) ValidSelf() {
-	if z.Logs == nil {
-		z.Logs = defaultZap.Logs
-	}
-	for k, v := range z.Logs {
-		switch k {
-		case Console:
-			if v.Level < zapcore.DebugLevel || v.Level > zapcore.FatalLevel {
-				v.Level = defaultCommand.Level
-			}
-		case File:
-			if v.Level < zapcore.DebugLevel || v.Level > zapcore.FatalLevel {
-				v.Level = defaultFile.Level
-			}
-			if v.Store == nil {
-				v.Store = defaultFile.Store
-			} else {
-				if v.Store.Path == "" {
-					v.Store.Path = defaultFile.Store.Path
-				}
-				if v.Store.MaxSize == 0 {
-					v.Store.MaxSize = defaultFile.Store.MaxSize
-				}
-				if v.Store.MaxBackups == 0 {
-					v.Store.MaxBackups = defaultFile.Store.MaxBackups
-				}
-				if v.Store.MaxAge == 0 {
-					v.Store.MaxAge = defaultFile.Store.MaxAge
-				}
-			}
-		default:
-			delete(z.Logs, k)
+	for name, instance := range z.Instances {
+		if instance.Logs == nil {
+			instance.Logs = defaultInstance.Logs
 		}
+		for k, v := range instance.Logs {
+			switch k {
+			case Console:
+				if v.Level < zapcore.DebugLevel || v.Level > zapcore.FatalLevel {
+					v.Level = defaultCommand.Level
+				}
+			case File:
+				if v.Level < zapcore.DebugLevel || v.Level > zapcore.FatalLevel {
+					v.Level = defaultFile.Level
+				}
+				if v.Store == nil {
+					v.Store = defaultFile.Store
+				} else {
+					if v.Store.Path == "" {
+						v.Store.Path = defaultFile.Store.Path
+					}
+					if v.Store.MaxSize == 0 {
+						v.Store.MaxSize = defaultFile.Store.MaxSize
+					}
+					if v.Store.MaxBackups == 0 {
+						v.Store.MaxBackups = defaultFile.Store.MaxBackups
+					}
+					if v.Store.MaxAge == 0 {
+						v.Store.MaxAge = defaultFile.Store.MaxAge
+					}
+				}
+			default:
+				delete(instance.Logs, k)
+			}
+		}
+		if instance.CallDepth <= 0 {
+			instance.CallDepth = defaultInstance.CallDepth
+		}
+		z.Instances[name] = instance
 	}
-	if z.CallDepth <= 0 {
-		z.CallDepth = defaultZap.CallDepth
+	if z.RunAfters == nil {
+		z.RunAfters = []string{}
 	}
 }
 
@@ -134,13 +142,11 @@ func (z *Config) ToTask() tao.Task {
 	return tao.NewTask(
 		ConfigKey,
 		func(ctx context.Context, param tao.Parameter) (tao.Parameter, error) {
-			// non-block check
 			select {
 			case <-ctx.Done():
 				return param, tao.NewError(tao.ContextCanceled, "%s: context has been canceled", ConfigKey)
 			default:
 			}
-			// nothing to do
 			return param, nil
 		})
 }

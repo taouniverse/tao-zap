@@ -1,4 +1,4 @@
-// Copyright 2022 huija
+// Copyright 2021-2026 huija
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,11 @@
 package zap
 
 import (
+	"context"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/taouniverse/tao"
-	"testing"
 )
 
 func TestTao(t *testing.T) {
@@ -37,6 +39,6 @@ func TestTao(t *testing.T) {
 	//tao.Fatal("logger fatal")
 	//tao.Fatalf("logger %s", "fatalf")
 
-	err = tao.Run(nil, nil)
+	err = tao.Run(context.Background(), nil)
 	assert.Nil(t, err)
 }

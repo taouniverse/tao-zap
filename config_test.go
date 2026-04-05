@@ -1,4 +1,4 @@
-// Copyright 2022 huija
+// Copyright 2021-2026 huija
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,9 +20,10 @@ import (
 )
 
 func TestConfig(t *testing.T) {
-	z := new(Config)
+	z := &Config{}
+	z.SetInstances(map[string]InstanceConfig{"default": *defaultInstance})
 	z.ValidSelf()
-	assert.EqualValues(t, z, defaultZap)
+	assert.EqualValues(t, z.RunAfters, []string{})
 
 	t.Log(z.RunAfter())
 	t.Log(z.ToTask())

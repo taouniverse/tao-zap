@@ -1,4 +1,4 @@
-// Copyright 2022 huija
+// Copyright 2021-2026 huija
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,29 +15,79 @@
 package zap
 
 import (
+	"os"
+
 	"github.com/taouniverse/tao"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
-	"os"
 )
 
 /**
 import _ "github.com/taouniverse/tao-zap"
 */
 
-// Z config of zap
-var Z = new(Config)
+// Z is the global config instance for tao-zap
+var Z = &Config{}
+
+// Factory is the global factory instance for managing zap.SugaredLogger
+var Factory *tao.BaseFactory[*zap.SugaredLogger]
 
 func init() {
-	err := tao.Register(ConfigKey, Z, setup)
+	var err error
+	Factory, err = tao.Register(ConfigKey, Z, NewZap)
 	if err != nil {
 		panic(err.Error())
 	}
 }
 
-// Logger based on zap
-var Logger *zap.SugaredLogger
+// NewZap creates a new Zap logger for factory pattern
+func NewZap(name string, config InstanceConfig) (*zap.SugaredLogger, func() error, error) {
+	var localSetups []zapSetup
+	var localWS []zapcore.WriteSyncer
+	var localCores []zapcore.Core
+
+	for t, c := range config.Logs {
+		switch t {
+		case File:
+			ws, setup := buildFileLog(c)
+			localWS = append(localWS, ws)
+			localSetups = append(localSetups, setup)
+		case Console:
+			ws, setup := buildConsoleLog(c)
+			localWS = append(localWS, ws)
+			localSetups = append(localSetups, setup)
+		default:
+			return nil, nil, tao.NewErrorWrapped("config: log type invalid", nil)
+		}
+	}
+
+	for _, s := range localSetups {
+		localCores = append(localCores, zapcore.NewCore(s.enc, s.out, s.level))
+	}
+
+	logger := zap.New(
+		zapcore.NewTee(localCores...),
+		zap.AddCaller(),
+		zap.AddCallerSkip(config.CallDepth),
+	).Sugar()
+
+	err := tao.SetLogger(ConfigKey, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	err = tao.SetWriter(ConfigKey, zapcore.NewMultiWriteSyncer(localWS...))
+	if !config.Coexist {
+		_ = tao.DeleteLogger(tao.ConfigKey)
+		_ = tao.DeleteWriter(tao.ConfigKey)
+	}
+
+	closer := func() error {
+		return logger.Sync()
+	}
+
+	return logger, closer, err
+}
 
 type zapSetup struct {
 	enc   zapcore.Encoder
@@ -45,64 +95,21 @@ type zapSetup struct {
 	out   zapcore.WriteSyncer
 }
 
-var setups []*zapSetup       // core's setup
-var ws []zapcore.WriteSyncer // core's root writers
-var cores []zapcore.Core     // cores
+func buildConsoleLog(c *LogConfig) (zapcore.WriteSyncer, zapSetup) {
+	ws := zapcore.AddSync(os.Stdout)
 
-// setup with zap config
-func setup() (err error) {
-	for t, c := range Z.Logs {
-		switch t {
-		case File:
-			setupFileLog(c)
-		case Console:
-			setupConsoleLog(c)
-		default:
-			return tao.NewErrorWrapped("config: log type invalid", nil)
-		}
-	}
-
-	// setup cores
-	for _, s := range setups {
-		cores = append(cores, zapcore.NewCore(s.enc, s.out, s.level))
-	}
-
-	// final logger
-	Logger = zap.New(
-		zapcore.NewTee(cores...),
-		zap.AddCaller(),
-		zap.AddCallerSkip(Z.CallDepth),
-	).Sugar()
-
-	// add zap to tao
-	err = tao.SetLogger(ConfigKey, Logger)
-	if err != nil {
-		return
-	}
-	err = tao.SetWriter(ConfigKey, zapcore.NewMultiWriteSyncer(ws...))
-	if !Z.Coexist {
-		_ = tao.DeleteLogger(tao.ConfigKey)
-		_ = tao.DeleteWriter(tao.ConfigKey)
-	}
-	return
-}
-
-func setupConsoleLog(c *config) {
-	// writerSync
-	ws = append(ws, zapcore.AddSync(os.Stdout))
-	// encoderConfig
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout("2006/01/02 15:04:05.000")
 	encoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	// setup
-	setups = append(setups, &zapSetup{
+
+	return ws, zapSetup{
 		enc:   zapcore.NewConsoleEncoder(encoderConfig),
 		level: c.Level,
-		out:   ws[len(ws)-1],
-	})
+		out:   ws,
+	}
 }
 
-func setupFileLog(c *config) {
+func buildFileLog(c *LogConfig) (zapcore.WriteSyncer, zapSetup) {
 	sliceLogger := &lumberjack.Logger{
 		Filename:   c.Store.Path,
 		MaxSize:    c.Store.MaxSize,
@@ -112,15 +119,14 @@ func setupFileLog(c *config) {
 		LocalTime:  c.Store.LocalZone,
 	}
 
-	// writerSync
-	ws = append(ws, zapcore.AddSync(sliceLogger))
-	// encoderConfig
+	ws := zapcore.AddSync(sliceLogger)
+
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
-	// setup
-	setups = append(setups, &zapSetup{
+
+	return ws, zapSetup{
 		enc:   zapcore.NewJSONEncoder(encoderConfig),
 		level: c.Level,
-		out:   ws[len(ws)-1],
-	})
+		out:   ws,
+	}
 }
