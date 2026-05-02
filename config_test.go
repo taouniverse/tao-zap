@@ -16,12 +16,13 @@ package zap
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/taouniverse/tao"
 	"testing"
 )
 
 func TestConfig(t *testing.T) {
 	z := &Config{}
-	z.SetInstances(map[string]InstanceConfig{"default": *defaultInstance})
+	z.SetInstances([]tao.Instance[InstanceConfig]{{Name: "default", Cfg: *defaultInstance}})
 	z.ValidSelf()
 	assert.EqualValues(t, z.RunAfters, []string{})
 

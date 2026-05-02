@@ -16,6 +16,7 @@ package zap
 
 import (
 	"context"
+
 	"github.com/taouniverse/tao"
 	"go.uber.org/zap/zapcore"
 )
@@ -93,7 +94,8 @@ func (z *Config) Name() string {
 
 // ValidSelf with some default values
 func (z *Config) ValidSelf() {
-	for name, instance := range z.Instances {
+	for i := range z.Instances {
+		instance := &z.Instances[i].Cfg
 		if instance.Logs == nil {
 			instance.Logs = defaultInstance.Logs
 		}
@@ -130,7 +132,6 @@ func (z *Config) ValidSelf() {
 		if instance.CallDepth <= 0 {
 			instance.CallDepth = defaultInstance.CallDepth
 		}
-		z.Instances[name] = instance
 	}
 	if z.RunAfters == nil {
 		z.RunAfters = []string{}
